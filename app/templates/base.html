@@ -1,0 +1,74 @@
+<html>
+<head>
+{% if title %}
+<title>Commonly User Management Tasks</title>
+{% else %}
+<title>Commonly User Management Tasks</title>
+{% endif %}
+</head>
+<body>
+<button id="executeButton">Match All Users</button>
+<button id="loadButton">Load Users from Postgres</button>
+<button id="resetButton">Reset Tables</button>
+    <hr>
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <ul>
+    {% for message in messages %}
+    <li>{{ message }}</li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+
+<script>
+    document.getElementById("executeButton").addEventListener("click", function() {
+        fetch("/run_script", {
+            method: "POST"
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            const iframe = document.getElementById("airtableIframe");
+            iframe.src = iframe.src;
+        })
+        .catch(error => {
+            console.error("There was an error:", error);
+        });
+    });
+
+    document.getElementById("loadButton").addEventListener("click", function() {
+        fetch("/load_users", {
+            method: "POST"
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            const iframe = document.getElementById("usersIframe");
+            iframe.src = iframe.src;
+        })
+        .catch(error => {
+            console.error("There was an error:", error);
+        });
+    });
+
+    document.getElementById("resetButton").addEventListener("click", function() {
+        fetch("/reset_tables", {
+            method: "POST"
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            const iframe = document.getElementById("airtableIframe");
+            iframe.src = iframe.src;
+            const iframe2 = document.getElementById("usersIframe");
+            iframe2.src = iframe2.src;
+        })
+        .catch(error => {
+            console.error("There was an error:", error);
+        });
+    });
+</script>
+</body>
+</html>

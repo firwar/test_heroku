@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Hello Commonly</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #ffffff; /* This is a light gray color */
+        }
+        /* Button and hover styles */
+        button {
+            margin: 10px;
+            transition: all 0.3s;
+            background-color: rgb(1, 0, 23) !important;
+            color: white !important;
+            min-width: 150px;  /* Adjust this value based on the widest label */
+            max-width: 200px;
+            white-space: nowrap;  /* Prevents the text from breaking into multiple lines */
+        }
+        button:hover {
+            background-color: rgb(7, 15, 99) !important;
+        }
+
+        iframe {
+            padding: 10px;
+            width: 90%;
+            margin: 0 auto;
+            display: block;
+        }
+
+        #modalMessage {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(240, 240, 240, 0.9); /* Very light gray background */
+        }
+
+        #modalContent {
+            font-family: 'Times New Roman', Times, serif; /* Same font as the Hi, Airtable text */
+            font-weight: bold;
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 30%;
+        }
+
+        #closeModal {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+            border: 1px solid #aaa;
+            padding: 0 5px;
+        }
+
+        #closeModal:hover {
+            color: black;
+        }
+
+        .button-container {
+            width: 90%;
+            margin: 10px auto;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .divider {
+            margin: 20px 0;
+            border-top: 1px solid #ddd;
+        }
+
+        .iframe-label {
+            width: 90%;
+            margin: 10px auto;
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body class="text-center">
+    <h1 class="my-4">Hello Commonly.</h1>
+
+    <div class="button-container">
+        <div>
+            <button id="loadButton" class="btn btn-primary" data-original-text="Load Postgres Users">1. Load Postgres Users</button>
+            <button id="executeButton" class="btn btn-primary" data-original-text="Match User Groups">2. Match User Groups</button>
+            <button id="emailsButton" class="btn btn-primary" data-original-text="Send Match" disabled="true">3. Send Match Emails</button>
+        </div>
+        <div>
+            <button id="resetButton" class="btn btn-primary" data-original-text="Reset Tables">Reset Tables</button>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Modal structure -->
+    <div id="modalMessage">
+        <div id="modalContent">
+            <span id="closeModal">&times;</span>
+            <p id="modalText"></p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <ul>
+        {% for message in messages %}
+        <li>{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+
+    <script>
+        function handleButtonClick(button, url, iframeId) {
+            button.disabled = true;
+            button.innerText = "Running...";
+
+            fetch(url, { method: "POST" })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("modalText").innerText = data.message;
+                    document.getElementById("modalMessage").style.display = "block";
+
+                    if (iframeId) {
+                        const iframe = document.getElementById(iframeId);
+                        iframe.src = iframe.src;
+                    }
+                    const iframe2 = document.getElementById("usersIframe");
+                    iframe2.src = iframe2.src;
+
+                    button.disabled = false;
+                    button.innerText = button.getAttribute("data-original-text");
+                })
+                .catch(error => {
+                    console.error("There was an error:", error);
+                });
+        }
+
+        document.getElementById("executeButton").addEventListener("click", function () {
+            handleButtonClick(this, "/run_script", "usersIframe");
+        });
+
+        document.getElementById("loadButton").addEventListener("click", function () {
+            handleButtonClick(this, "/load_users", "usersIframe");
+        });
+
+        document.getElementById("resetButton").addEventListener("click", function () {
+            handleButtonClick(this, "/reset_tables");
+            
+        });
+
+        document.getElementById("closeModal").addEventListener("click", function () {
+            document.getElementById("modalMessage").style.display = "none";
+        });
+    </script>
+    
+    <iframe id="usersIframe" class="airtable-embed" src="https://airtable.com/embed/appPrjUSEv6JdAeVJ/shrvu2J7ZLRVfZCu7?backgroundColor=pinkDusty" frameborder="0" onmousewheel="" width="100%" height="660" style="background: transparent; border: 1px solid #ccc;"></iframe>
+
+</body>
+
+</html>
