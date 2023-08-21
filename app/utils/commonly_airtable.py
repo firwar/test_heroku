@@ -195,7 +195,11 @@ class CommonlyAirtable():
         for i in range(num_iterations):
             neighbor = self.generate_neighbor(current_solution)
             neighbor_energy = self.get_energy(neighbor)
-            print("neighbor_energy: " + str(current_energy))
+            if (neighbor_energy >= 100000):
+                continue
+            print(str(i) + " neighbor_energy: " + str(current_energy))
+
+            #potentially
             if neighbor_energy < current_energy:
                 current_solution, current_energy = neighbor, neighbor_energy
             else:
@@ -260,8 +264,18 @@ class CommonlyAirtable():
             variance_total += variance
 
         calculated_energy = variance_total 
-        return calculated_energy 
 
+
+        closeness_energy = 0
+        for i in range(len(groups)):
+            friendly_location_arr = []
+            for j in range(len(groups[i])):
+                friendly_location_arr.append(groups[i][j]['fields']['friendly_location'])
+            closeness = self.closeness_score(friendly_location_arr) * 2000
+            closeness_energy += closeness
+            
+        calculated_energy += closeness_energy
+        return calculated_energy 
     # neighbor algorith
     # swap two people 
     # move one to different group
@@ -303,11 +317,8 @@ class CommonlyAirtable():
 
         all_records = self.table.all()
 
-        friendly_location_values = ['C','NW','N','NE','E','SE','S','SW','W']
+        friendly_location_circle = ['NW','N','NE','E','SE','S','SW','W']
         friendly_location = {}
-        friendly_location['N'] = 1
-        friendly_location['NW'] = 1
-        friendly_location['E'] = 1
     # id
     # availability
     # age
@@ -315,6 +326,7 @@ class CommonlyAirtable():
         # Sort by age
         availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
         availability_count = [0, 0, 0, 0, 0]
+        all_records = list(filter(lambda record: record['fields']['friendly_location'] != 'Out of Range', all_records))
         for record in all_records:
             record['fields']['processed'] = False
             for day in record['fields']['Availability']:
@@ -343,7 +355,7 @@ class CommonlyAirtable():
         print(len(group_records))
         for records in group_records: 
             for record in records:
-                print(str(record['fields']['age']) + " " + record['fields']['day'])
+                print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'])
 
             print("")
 
@@ -376,6 +388,41 @@ class CommonlyAirtable():
     def test_write(self):
         self.table.create({'Name': 'John'})
 
+    def closeness_score(self, locations):
+        # Mapping of locations to their angles in radians
+        loc_to_angle = {
+            'N': 0,
+            'NE': math.pi / 4,
+            'E': math.pi / 2,
+            'SE': 3 * math.pi / 4,
+            'S': math.pi,
+            'SW': -3 * math.pi / 4,
+            'W': -math.pi / 2,
+            'NW': -math.pi / 4,
+            'C': None  # 'C' has no unique angle
+        }
+
+        # Compute average x and y position for the group excluding 'C' users
+        avg_x, avg_y = 0, 0
+        non_c_count = 0
+        for loc in locations:
+            angle = loc_to_angle[loc]
+            if angle is not None:  # Only add contributions of non-'C' users
+                avg_x += math.cos(angle)
+                avg_y += math.sin(angle)
+                non_c_count += 1
+
+        # Divide by the total number of users, not just non-'C' users
+        avg_x /= len(locations)
+        avg_y /= len(locations)
+
+        # Measure the distance from the average position to the center
+        distance_to_center = math.sqrt(avg_x**2 + avg_y**2)
+
+        closeness = 1.0 - distance_to_center
+
+        return closeness
+
 if __name__ == "__main__":
     random.seed(2)
     value = ''
@@ -392,15 +439,16 @@ if __name__ == "__main__":
     #airtable.delete_all_data()
     #airtable.send_data_to_airtable(column_names, rows)
     #airtable.simple_record_match("Week1")
-    airtable.advanced_record_match("Week1")
-    initial_temperature = 1000
-    cooling_rate = 0.995
+    # Examples
+    #airtable.advanced_record_match("Week1")
+    initial_temperature = 3000
+    cooling_rate = 0.99
     num_iterations = 10000
     best_groups = airtable.simulated_annealing(initial_temperature, cooling_rate, num_iterations)
 
     for records in best_groups: 
         for record in records:
-            print(str(record['fields']['age']) + " " + record['fields']['day'])
+            print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'])
         print("\n")
 
 
