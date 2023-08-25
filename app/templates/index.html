@@ -90,9 +90,11 @@
 
     <div class="button-container">
         <div>
-            <button id="loadButton" class="btn btn-primary" data-original-text="Load Postgres Users">1. Load Postgres Users</button>
-            <button id="executeButton" class="btn btn-primary" data-original-text="Match User Groups">2. Match User Groups</button>
-            <button id="emailsButton" class="btn btn-primary" data-original-text="Send Match" disabled="true">3. Send Match Emails</button>
+            <button id="loadButton" class="btn btn-primary" data-original-text="Load Postgres Users">Load Postgres Users</button>
+            <button id="executeButton" class="btn btn-primary" data-original-text="Match User Groups">Match User Groups</button>
+            <button id="updateStatusButton" class="btn btn-primary" data-original-text="Update Groups Confirmed">Update Groups Confirmed</button>
+            <button id="createPaperformsButton" class="btn btn-primary" data-original-text="Create Paperforms">Create Paperforms</button>
+            <!-- <button id="emailsButton" class="btn btn-primary" data-original-text="Send Match" disabled="true">3. Send Match Emails</button> -->
         </div>
         <div>
             <button id="resetButton" class="btn btn-primary" data-original-text="Reset Tables">Reset Tables</button>
@@ -122,13 +124,38 @@
     {% block content %}{% endblock %}
 
     <script>
+        let elapsedTime = 0;
+        let interval;
+
+        function setAllButtonsDisabled(disabled) {
+            const buttons = document.querySelectorAll(".btn");
+            buttons.forEach(btn => {
+                btn.disabled = disabled;
+            });
+        }
+        function updateTime(button) {
+            elapsedTime++;
+            button.innerText = `Running... (${elapsedTime} s)`;
+        }
+
+
         function handleButtonClick(button, url, iframeId) {
-            button.disabled = true;
+            setAllButtonsDisabled(true); 
             button.innerText = "Running...";
+
+            // Start elapsed time for executeButton
+            if (button.id === "executeButton") {
+                elapsedTime = 0;
+                interval = setInterval(() => updateTime(button), 1000);
+            }
 
             fetch(url, { method: "POST" })
                 .then(response => response.json())
                 .then(data => {
+                    clearInterval(interval)
+                    setAllButtonsDisabled(false);  // Re-enable all buttons after processing
+                    button.innerText = button.getAttribute("data-original-text");
+
                     document.getElementById("modalText").innerText = data.message;
                     document.getElementById("modalMessage").style.display = "block";
 
@@ -143,25 +170,46 @@
                     button.innerText = button.getAttribute("data-original-text");
                 })
                 .catch(error => {
+                    clearInterval(interval); 
+                    setAllButtonsDisabled(false);  // Re-enable all buttons after processing
                     console.error("There was an error:", error);
                 });
         }
 
         document.getElementById("executeButton").addEventListener("click", function () {
-            handleButtonClick(this, "/run_script", "usersIframe");
+            handleButtonClick(this, "/advanced_match", "usersIframe");
         });
 
         document.getElementById("loadButton").addEventListener("click", function () {
             handleButtonClick(this, "/load_users", "usersIframe");
         });
 
+        document.getElementById("updateStatusButton").addEventListener("click", function () {
+            handleButtonClick(this, "/update_matched", "usersIframe");
+        });
+
+        document.getElementById("createPaperformsButton").addEventListener("click", function () {
+            handleButtonClick(this, "/create_paperforms", "usersIframe");
+        });
+
+
         document.getElementById("resetButton").addEventListener("click", function () {
-            handleButtonClick(this, "/reset_tables");
+            handleButtonClick(this, "/reset_tables", "usersIframe");
             
         });
 
         document.getElementById("closeModal").addEventListener("click", function () {
             document.getElementById("modalMessage").style.display = "none";
+        });
+
+        // Add this code to set the iframe src based on environment variable
+        window.addEventListener('DOMContentLoaded', (event) => {
+            const env = "{{ environment }}"; // replace with Flask's way to pass environment variables
+            const iframe = document.getElementById("usersIframe");
+            
+            if (env === "production") {
+                iframe.src = "https://airtable.com/embed/appzACnuRf6rWCDKJ/shrqrQLKP3Hjvmy3m?backgroundColor=cyan"
+            }
         });
     </script>
     

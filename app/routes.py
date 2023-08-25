@@ -4,7 +4,6 @@ import json
 import datetime
 import csv
 import re
-import random
 from flask import render_template, flash, redirect, jsonify
 from app import app
 from app.forms import LoginForm
@@ -22,7 +21,7 @@ from pyairtable import Table, Api
 @app.route('/index')
 def index():
     user = {'username': 'Airtable'}
-    return render_template('index.html', title='Home', user=user)
+    return render_template('index.html', title='Home', user=user, environment=app.config['FLASK_ENV'])
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -37,6 +36,13 @@ def login():
 def simple_record_match():
     app.commonly_airtable.simple_record_match("Week1") 
     return jsonify({"message": "Task finished successfully!"})
+
+@app.route('/advanced_match', methods=['POST'])
+def advanced_match():
+    app.commonly_airtable.delete_match_data()
+    app.commonly_airtable.advanced_record_match("Week1") 
+    return jsonify({"message": "Task finished successfully!"})
+
 
     # all_records = []
 
@@ -63,13 +69,14 @@ def simple_record_match():
 
 @app.route('/load_users', methods=['POST'])
 def load_users():
-    reset_tables()
+    app.commonly_airtable.delete_all_data()
     column_names = ''
     rows = ''
     with open('db.txt', 'rb') as f:
         column_names, rows = pickle.load(f)
 
-
+    # load from postgres
+    #column_names, rows = app.commonly_postgres.fetch_data_from_postgres()
     app.commonly_airtable.send_data_to_airtable(column_names, rows)
     return jsonify({"message": "Task finished successfully!"})
 
@@ -109,9 +116,39 @@ def load_users():
 
     # return jsonify({"message": "Task finished successfully!"})
 
-@app.route('/reset_tables', methods=['POST'])
-def reset_tables():
-    app.commonly_airtable.delete_all_data()
+@app.route('/create_paperforms', methods=['POST'])
+def create_paperforms():
+
+    group_records = app.commonly_airtable.get_group_records()
+    app.commonly_paperform.start_driver_login()
+    i = 0
+    updated_group_records = []
+    for record in group_records:
+        if record['fields']['status'] != 'confirmed':
+            continue
+        if record['fields'].get('paperform_link', None) != None:
+            continue
+        names = record['fields']['first_name']
+        venue = record['fields']['venue_name'][0]
+        print(venue)
+        names_list = names.split("\n")
+        print(names_list)
+        form_name = record['fields']['Name']
+        try:
+            paperform_link = app.commonly_paperform.create_post_survey_form(form_name, names_list, venue)
+            updated_group_records.append({'id': record['id'], 'fields': {"paperform_link": paperform_link}})
+            app.commonly_airtable.update_group_records(updated_group_records)
+            updated_group_records = []
+        except Exception as e:
+            print("Exception:", e)
+
+        i = i+1
+    app.commonly_paperform.close()
+    #app.commonly_airtable.delete_all_data()
+    # commonly get match records
+    # for each group
+        # get names
+        # send group number, venue, names, to paperform
     return jsonify({"message": "Task finished successfully!"})
 
     # all_records = group_table.all()
@@ -122,6 +159,32 @@ def reset_tables():
     # all_record_ids = [record['id'] for record in all_records]
     # table.batch_delete(all_record_ids)
     # return jsonify({"message": "Task finished successfully!"})
+
+@app.route('/reset_tables', methods=['POST'])
+def reset_tables():
+    all_record_ids = [record['id'] for record in all_records]
+    group_table.batch_delete(all_record_ids)
+
+    all_records = table.all()
+    all_record_ids = [record['id'] for record in all_records]
+    table.batch_delete(all_record_ids)
+    return jsonify({"message": "Task finished successfully!"})
+
+@app.route('/update_matched', methods=['POST'])
+def update_matched():
+    app.commonly_airtable.set_matched_users("Week1")
+    return jsonify({"message": "Matched users updated!"})
+
+    # all_records = group_table.all()
+    # all_record_ids = [record['id'] for record in all_records]
+    # group_table.batch_delete(all_record_ids)
+
+    # all_records = table.all()
+    # all_record_ids = [record['id'] for record in all_records]
+    # table.batch_delete(all_record_ids)
+    # return jsonify({"message": "Task finished successfully!"})
+
+
 
 
 
