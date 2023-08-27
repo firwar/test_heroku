@@ -94,13 +94,14 @@
             <button id="executeButton" class="btn btn-primary" data-original-text="Match User Groups">Match User Groups</button>
             <button id="updateStatusButton" class="btn btn-primary" data-original-text="Update Groups Confirmed">Update Groups Confirmed</button>
             <button id="createPaperformsButton" class="btn btn-primary" data-original-text="Create Paperforms">Create Paperforms</button>
+            <button id="processSurveysButton" class="btn btn-primary" data-original-text="Process Surveys">Process Surveys</button>
+            <button id="emailMatchesButton" class="btn btn-primary" data-original-text="Email Matches">Email Matches</button>
             <!-- <button id="emailsButton" class="btn btn-primary" data-original-text="Send Match" disabled="true">3. Send Match Emails</button> -->
         </div>
         <div>
             <button id="resetButton" class="btn btn-primary" data-original-text="Reset Tables">Reset Tables</button>
         </div>
     </div>
-
     <hr>
 
     <!-- Modal structure -->
@@ -192,6 +193,16 @@
             handleButtonClick(this, "/create_paperforms", "usersIframe");
         });
 
+        document.getElementById("processSurveysButton").addEventListener("click", function () {
+            handleButtonClick(this, "/process_surveys", "usersIframe");
+        });
+
+        document.getElementById("emailMatchesButton").addEventListener("click", function () {
+            handleButtonClick(this, "/email_matches", "usersIframe");
+        });
+
+
+
 
         document.getElementById("resetButton").addEventListener("click", function () {
             handleButtonClick(this, "/reset_tables", "usersIframe");
@@ -213,7 +224,7 @@
         });
     </script>
     
-    <iframe id="usersIframe" class="airtable-embed" src="https://airtable.com/embed/appPrjUSEv6JdAeVJ/shrvu2J7ZLRVfZCu7?backgroundColor=pinkDusty" frameborder="0" onmousewheel="" width="100%" height="660" style="background: transparent; border: 1px solid #ccc;"></iframe>
+    <iframe id="usersIframe" class="airtable-embed" src="https://airtable.com/embed/appVpcavXi3V5Mcou/shrJs0vtD1qFfS1bv?backgroundColor=orange" frameborder="0" onmousewheel="" width="100%" height="660" style="background: transparent; border: 1px solid #ccc;"></iframe>
 
 </body>
 

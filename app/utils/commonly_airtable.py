@@ -9,6 +9,7 @@ import csv
 import re
 import os
 import math
+import pytz
 #from sklearn.metrics import pairwise_distances
 #from scipy.spatial.distance import cosine
 # import spacy
@@ -20,9 +21,9 @@ class CommonlyAirtable():
     def __init__(self, api_key, environment):
 
         if environment == "development":
-            self.AIRTABLE_BASE_ID = "appPrjUSEv6JdAeVJ"
-            self.AIRTABLE_TABLE_NAME = "TestUsers"
-            self.AIRTABLE_GROUP_TABLE_NAME = "TestGroups"
+            self.AIRTABLE_BASE_ID = "appVpcavXi3V5Mcou"
+            self.AIRTABLE_TABLE_NAME = "Users"
+            self.AIRTABLE_GROUP_TABLE_NAME = "Week1"
 
         if environment == "production":
             self.AIRTABLE_BASE_ID = "appzACnuRf6rWCDKJ"
@@ -30,7 +31,7 @@ class CommonlyAirtable():
             self.AIRTABLE_GROUP_TABLE_NAME = "Week1"
 
 
-        self.availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        self.availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         self.api = Api(api_key)
         self.table = self.api.table(self.AIRTABLE_BASE_ID, self.AIRTABLE_TABLE_NAME)
         self.group_table = self.api.table(self.AIRTABLE_BASE_ID, self.AIRTABLE_GROUP_TABLE_NAME)
@@ -47,7 +48,8 @@ class CommonlyAirtable():
             for row in rows:
                 writer.writerow(row)
 
-    def send_data_to_airtable(self, column_names, rows):
+
+    def mock_data_to_airtable(self, column_names, rows):
         # Function to convert individual row to Airtable record format
         def row_to_record(row):
             return {
@@ -63,7 +65,7 @@ class CommonlyAirtable():
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d %H:%M:%S")
 
 
-        availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         records = [row_to_record(row) for row in rows]
         
         for i in range(len(records)):
@@ -103,6 +105,122 @@ class CommonlyAirtable():
         #input()
         # Send records to Airtable (Note: pyairtable does automatic batching)
         response = self.table.batch_create(records)
+
+        # Check for errors (you can adjust this based on your needs)
+        for record in response:
+            if 'error' in record:
+                print(f"Failed to insert record: {record}. Error: {record['error']}")
+
+
+
+    def send_data_to_airtable(self, column_names, rows):
+        # Function to convert individual row to Airtable record format
+        def row_to_record(row):
+            return {
+                column_names[i]: (value.isoformat() if isinstance(value, (dt.date, dt.datetime)) else value)
+                for i, value in enumerate(row)
+            }
+
+        existing_records = self.get_all_records()
+        existing_postgres_id_record_id = {}
+        date_object_list = []
+        # exiting postgres records
+        for record in existing_records:
+            date_string = record['fields']['avail_updated_at']
+            date_object = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%fZ")
+            date_object_list.append(date_object)
+            existing_postgres_id_record_id[record['fields']['postgres_id']] = record['id']
+        
+        if (len(date_object_list) != 0):
+            latest_updated_at = max(date_object_list)
+        else:
+            initial_date = "2020-08-26T17:38:38.364Z"
+            latest_updated_at = datetime.strptime(initial_date, "%Y-%m-%dT%H:%M:%S.%fZ")
+        # if id exists
+        # check against available times
+        # update available times if there is an update
+
+        # start_date_str = "2023-04-02 00:00:00"
+        # end_date_str = "2023-09-08 23:59:59"
+
+        # start_date = datetime.strptime(start_date_str, "%Y-%m-%d %H:%M:%S")
+        # end_date = datetime.strptime(end_date_str, "%Y-%m-%d %H:%M:%S")
+
+        # records parsed from postgres
+        availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        records = [row_to_record(row) for row in rows]
+        mountain_timezone = pytz.timezone('America/Denver') 
+        records_to_update = []
+        records_to_add = []
+        for i in range(len(records)):
+            week_dates_avail = []
+
+            # Only process entries that have been last updated
+            date_string = records[i]['avail_updated_at']
+            print(date_string)
+            updated_at = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%f")
+            updated_at = updated_at.replace(microsecond=0)
+            if updated_at <= latest_updated_at:
+                continue
+            print("updates")
+            print(updated_at)
+            print(latest_updated_at)
+            print("done")
+            postgres_id = records[i].pop('id')
+            for date_string in records[i]['time_avail']:
+                date_object_utc = datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S")
+                date_object_utc = pytz.utc.localize(date_object_utc)  # Marking as UTC
+
+                # Convert to Mountain Time
+                date_object_mt = date_object_utc.astimezone(mountain_timezone)
+                day_of_week = date_object_mt.strftime('%A')
+                week_dates_avail.append(day_of_week)
+
+            records[i]['postgres_id'] = postgres_id
+            records[i]['time_avail'] = ', '.join(records[i]['time_avail'])
+            records[i]['Week1'] = "unmatched"
+            records[i]['Week2'] = "unmatched"
+            records[i]['Week3'] = "unmatched"
+            records[i]['Week4'] = "unmatched"
+            records[i]['email_reg'] = True
+            records[i]['email_match'] = False
+            records[i]['Availability'] = []
+
+            # Use actual computed avail
+            records[i]['Availability'] = week_dates_avail[:]
+            if records[i]['postgres_id'] in existing_postgres_id_record_id:
+                records_to_update.append(records[i])
+            else:
+                records_to_add.append(records[i])
+
+            # Use random computed avail
+            # for j in range(len(availability_arr)):
+            #     rand_value = random.randint(0,2)
+            #     if (rand_value == 0):
+            #         records[i]['Availability'].append(availability_arr[j])
+            
+            # if len(records[i]['Availability']) == 0:
+            #     rand_value = random.randint(0,4)
+            #     records[i]['Availability'].append(availability_arr[rand_value])
+
+        updated_records = []
+        print(existing_postgres_id_record_id)
+        for record in records_to_update:
+            # record id 
+            print(record['postgres_id'])
+            print(existing_postgres_id_record_id[record['postgres_id']])
+            updated_records.append({'id': existing_postgres_id_record_id[record['postgres_id']], 'fields': {'avail_updated_at': record['avail_updated_at'], 'time_avail': record['time_avail']}})
+        print("to update")
+        print(updated_records)
+
+        self.table.batch_update(updated_records)
+
+        print("to add")
+        print(records_to_add)
+        #print(records[0])
+        #input()
+        # Send records to Airtable (Note: pyairtable does automatic batching)
+        response = self.table.batch_create(records_to_add)
 
         # Check for errors (you can adjust this based on your needs)
         for record in response:
@@ -215,10 +333,10 @@ class CommonlyAirtable():
         self.table.batch_update(updated_user_statuses)
 
     def advanced_record_match(self, week_col_string):
-        random.seed(7)
+        #random.seed(7)
         initial_temperature = 1000
         cooling_rate = 0.995
-        num_iterations = 100000
+        num_iterations = 20000
         best_solution, best_overflow = self.simulated_annealing(initial_temperature, cooling_rate, num_iterations)
 
         group_records = []
@@ -290,10 +408,11 @@ class CommonlyAirtable():
                 stuck_count = 0
 
             current_energy_last = current_energy 
-            if (stuck_count > 1000):
+            if (stuck_count > 10000):
                 print("THIS IS STUCK")
                 T = initial_temperature
                 stuck_count = 0
+                pass
             if (neighbor_energy >= 10000000):
                 continue
             print(str(i) + " neighbor_energy: " + str(current_energy))
@@ -322,7 +441,7 @@ class CommonlyAirtable():
     # [ records1. availabilities]
     def get_energy(self, groups, overflow_list):
         def get_amplification_factor(age):
-            if 20 <= age < 25:
+            if 0 <= age < 25:
                 return 80
             elif 25 <= age < 30:
                 return 40
@@ -348,9 +467,11 @@ class CommonlyAirtable():
 
 
         calculated_energy = 10000000
-        availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         for i in range(len(groups)):
             outer_availability_found = False
+            #for j in range(len(groups[i])):
+            #    print(groups[i][j]['fields']['first_name'])
             for j in range(len(availability_arr)):
 
                 # compare with every record in group
@@ -369,7 +490,6 @@ class CommonlyAirtable():
             if (outer_availability_found == False):
                 calculated_energy = 10000000
                 return calculated_energy
-
         for i in range(len(groups)):
             if len(groups[i]) > 7 or len(groups[i]) < 4:
                 calculated_energy = 10000000
@@ -395,7 +515,7 @@ class CommonlyAirtable():
             variance = sum((x - mean) ** 2 for x in age_list) / len(age_list)
             #print("vari: " + str(i) + ": " + str(variance))
 
-            variance_total += variance * (get_amplification_factor(min(age_list)))
+            variance_total += variance * (get_amplification_factor(min(age_list)))*10
 
         calculated_energy = variance_total
 
@@ -405,13 +525,25 @@ class CommonlyAirtable():
             friendly_location_arr = []
             for j in range(len(groups[i])):
                 friendly_location_arr.append(groups[i][j]['fields']['friendly_location'])
-            closeness = self.closeness_score(friendly_location_arr) * 2000
+            closeness = self.closeness_score(friendly_location_arr) * 100
             closeness_energy += closeness
             
         calculated_energy += closeness_energy
 
 
-        calculated_energy += len(overflow_list) * len(overflow_list) * 2000
+        min_group_energy = 0
+        for i in range(len(groups)):
+            if(len(groups[i]) <= 4):
+                min_group_energy += 3000
+            elif(len(groups[i]) <= 5):
+                min_group_energy += 1000
+            elif(len(groups[i]) >= 7):
+                min_group_energy += 1000
+
+        calculated_energy += min_group_energy
+
+        calculated_energy += len(overflow_list) * len(overflow_list) * 500
+
         return calculated_energy 
     # neighbor algorith
     # swap two people 
@@ -423,7 +555,7 @@ class CommonlyAirtable():
         overflow_list = copy.deepcopy(overflow)
 
         def get_age_bracket(age):
-            if 20 <= age < 25:
+            if 0 <= age < 25:
                 return 2
             elif 25 <= age < 30:
                 return 3
@@ -439,9 +571,9 @@ class CommonlyAirtable():
 
         # Create a new solution by swapping two random people between groups,
         # moving a person from one group to another, or other random changes.
-        rand_value = random.randint(1,10)
-        if rand_value == 7:
-            rand_value = random.randint(1,10)
+        rand_value = random.randint(0,10)
+        #if rand_value == 7:
+        #    rand_value = random.randint(1,10)
         if rand_value > 8:
             rand_value = 6
         # add overflow to group
@@ -479,15 +611,38 @@ class CommonlyAirtable():
             groups[rand_first_index].pop(random_first_group_index)
             groups[rand_second_index].append(temp_record)
         # remove group member add to overflow
+        # elif rand_value == 4:
+        #     rand_first_index = random.randint(0, len(groups)-1)
+        #     random_first_group_index = random.randint(0,len(groups[rand_first_index])-1)
+
+        #     temp_record = groups[rand_first_index][random_first_group_index]
+        #     groups[rand_first_index].pop(random_first_group_index)
+        #     overflow_list.append(temp_record)
+
         elif rand_value == 4:
-            rand_first_index = random.randint(0, len(groups)-1)
-            random_first_group_index = random.randint(0,len(groups[rand_first_index])-1)
+            rand_first_index = random.randint(0, len(groups) - 1)
+            rand_first_index = 0 
+            # Identify the member with the lowest or highest age
+            # For lowest age
+            min_age_member = min(groups[rand_first_index], key=lambda x: x['fields']['age'])
+            # For highest age
+            max_age_member = max(groups[rand_first_index], key=lambda x: x['fields']['age'])
 
-            temp_record = groups[rand_first_index][random_first_group_index]
-            groups[rand_first_index].pop(random_first_group_index)
-            overflow_list.append(temp_record)
 
-        if rand_value == 5:  # Cluster users of same age bracket
+            rand_high_low = random.randint(0,1)
+            # Remove the identified member from the group
+            if rand_high_low == 0:
+                overflow_list.append(min_age_member)  # Use max_age_member for highest age
+                groups[rand_first_index].remove(min_age_member)  # Use max_age_member for highest age
+                #print(min_age_member)
+            else:
+                overflow_list.append(max_age_member)  # Use max_age_member for highest age
+                groups[rand_first_index].remove(max_age_member)  # Use max_age_member for highest age
+
+
+            # Add the removed member to the overflow list
+
+        elif rand_value == 5:  # Cluster users of same age bracket
             rand_group_index = random.randint(0, len(groups)-1)
             age_brackets = [get_age_bracket(member['fields']['age']) for member in groups[rand_group_index]]
             common_bracket = max(set(age_brackets), key=age_brackets.count)
@@ -598,6 +753,18 @@ class CommonlyAirtable():
             #print(groups[rand_second_index][random_first_group_index]['fields']['first_name'])
 
         # ... (implement the logic to generate a neighboring solution)
+        # print("")
+        # for records in groups: 
+        #     for record in records:
+        #         print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'] + " " + record['fields']['first_name'])
+
+        #     print("")
+
+        # print("overflow")
+        # for record in overflow_list:
+        #     print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'] + " " + record['fields']['first_name'])
+        #     #print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'])
+
 
         return groups, overflow_list
 
@@ -613,8 +780,8 @@ class CommonlyAirtable():
     # age
     # location    
         # Sort by age
-        availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-        availability_count = [0, 0, 0, 0, 0]
+        availability_arr = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        availability_count = [0, 0, 0, 0, 0, 0, 0]
         #all_records = list(filter(lambda record: record['fields'].get('friendly_location',None) != None and record['fields']['friendly_location'] != 'Out of Range', all_records))
         all_records = list(filter(lambda record: record['fields'].get('active',None) != None and record['fields'].get('supported', None)!=None, all_records))
         for record in all_records:
@@ -668,13 +835,14 @@ class CommonlyAirtable():
         print(len(group_records))
         for records in group_records: 
             for record in records:
-                print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'])
+                print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'] + " " + record['fields']['first_name'])
 
             print("")
 
         print("overflow")
         for record in overflow_list:
-            print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'])
+            print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'] + " " + record['fields']['first_name'])
+            #print(str(record['fields']['friendly_location']) + " " + str(record['fields']['age']) + " " + record['fields']['day'])
 
 
 
@@ -746,8 +914,16 @@ class CommonlyAirtable():
         group_records = self.group_table.all()
         return group_records
 
+    def get_all_records(self):
+        records = self.table.all()
+        return records
+
     def update_group_records(self, updated_group_records):
         self.group_table.batch_update(updated_group_records)
+
+    def update_all_records(self, updated_all_records):
+        self.table.batch_update(updated_all_records)
+
 
 
 
@@ -776,7 +952,7 @@ if __name__ == "__main__":
     #airtable.advanced_record_match("Week1")
     initial_temperature = 4000
     cooling_rate = 0.996
-    num_iterations = 100000
+    num_iterations = 10000
     best_groups, best_overflow = airtable.simulated_annealing(initial_temperature, cooling_rate, num_iterations)
 
     for records in best_groups: 

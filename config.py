@@ -7,6 +7,7 @@ class Config(object):
     POSTGRES_DB_NAME = os.environ.get('POSTGRES_DB_NAME')
     PAPERFORM_USERNAME = os.environ.get('PAPERFORM_USERNAME')
     PAPERFORM_PASSWORD = os.environ.get('PAPERFORM_PASSWORD')
+    CUSTOMERIO_API_KEY = os.environ.get('CUSTOMERIO_API_KEY')
     FLASK_ENV = os.environ.get('FLASK_ENV')
 
 

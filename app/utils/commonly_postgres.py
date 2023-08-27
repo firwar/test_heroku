@@ -18,21 +18,27 @@ class CommonlyPostgres():
             database=self.pg_database
         )
 
+        query = """
+            SELECT
+                u.*,
+                ARRAY_AGG(TO_CHAR(ua.time, 'YYYY-MM-DD HH:MI:SS')) AS time_avail,
+                MAX(u.updated_at) AS updated_at,
+                MAX(ua.updated_at) AS avail_updated_at
+            FROM
+                users u
+            LEFT JOIN
+                user_availabilities ua ON u.id = ua.user_id
+            WHERE
+                ua.time IS NOT NULL
+                AND ua.updated_at > '2023-08-24T12:00:00.000Z'
+            GROUP BY
+                u.id
+            ORDER BY
+                avail_updated_at DESC;
+            """
+
         cursor = connection.cursor()
-        cursor.execute("SELECT \
-            u.*, \
-            ARRAY_AGG(TO_CHAR(ua.time, 'YYYY-MM-DD HH:MI:SS')) AS time_avail \
-            FROM users u \
-            LEFT JOIN user_availabilities ua \
-            ON u.id = ua.user_id \
-            WHERE ua.time IS NOT NULL \
-            GROUP BY \
-            u.id \
-            ORDER BY \
-            u.created_at \
-            DESC \
-            LIMIT \
-            5")  # Replace 'your_table_name' with the name of your table
+        cursor.execute(query)
         rows = cursor.fetchall()
 
         # Fetch the column names (optional, but useful if you want to match with Airtable fields)
